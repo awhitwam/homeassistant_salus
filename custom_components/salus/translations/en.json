@@ -1,4 +1,13 @@
 {
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "never_unavailable": "Never mark entities as unavailable"
+                }
+            }
+        }
+    },
     "config": {
         "abort": {
             "already_configured": "Device is already configured",

@@ -7,7 +7,7 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
 )
 
-from .const import DOMAIN
+from .const import CONF_NEVER_UNAVAILABLE, DOMAIN
 from .gateway import IT600Gateway
 
 
@@ -41,7 +41,14 @@ class SalusEntity(CoordinatorEntity):
 
     @property
     def available(self) -> bool:
-        """Entity available when coordinator succeeded *and* device online."""
+        """Entity available when coordinator succeeded *and* device online.
+
+        If the ``never_unavailable`` integration option is enabled, always
+        return True so that entities never flip to unavailable.
+        """
+        entry = self.coordinator.config_entry
+        if entry and entry.options.get(CONF_NEVER_UNAVAILABLE, False):
+            return True
         if not super().available:
             return False
         d = self._device

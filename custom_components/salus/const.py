@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # ── Home Assistant integration ──────────────────────────────────────
 DOMAIN = "salus"
+CONF_NEVER_UNAVAILABLE = "never_unavailable"
 
 # ── Temperature ─────────────────────────────────────────────────────
 DEGREE = "°"

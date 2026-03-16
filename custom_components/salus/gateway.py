@@ -327,7 +327,6 @@ class IT600Gateway:
         local: dict[str, CoverDevice] = {}
 
         if not devices:
-            self._cover_devices = local
             return
 
         status = await self._make_encrypted_request(
@@ -393,7 +392,11 @@ class IT600Gateway:
             except Exception:
                 _LOGGER.exception("Failed to poll cover %s", unique_id)
 
-        self._cover_devices = local
+        reported = set(local)
+        self._cover_devices.update(local)
+        for k in list(self._cover_devices):
+            if k not in reported:
+                del self._cover_devices[k]
 
     # ---- switches ----
 
@@ -404,8 +407,6 @@ class IT600Gateway:
         energy_local: dict[str, SensorDevice] = {}
 
         if not devices:
-            self._switch_devices = local
-            self._energy_sensor_devices = energy_local
             return
 
         status = await self._make_encrypted_request(
@@ -497,8 +498,17 @@ class IT600Gateway:
             except Exception:
                 _LOGGER.exception("Failed to poll switch %s", unique_id)
 
-        self._switch_devices = local
-        self._energy_sensor_devices = energy_local
+        reported = set(local)
+        self._switch_devices.update(local)
+        for k in list(self._switch_devices):
+            if k not in reported:
+                del self._switch_devices[k]
+
+        self._energy_sensor_devices.update(energy_local)
+        for k in list(self._energy_sensor_devices):
+            parent = k.removesuffix("_power").removesuffix("_energy")
+            if parent not in reported:
+                del self._energy_sensor_devices[k]
 
     # ---- sensors ----
 
@@ -508,7 +518,6 @@ class IT600Gateway:
         local: dict[str, SensorDevice] = {}
 
         if not devices:
-            self._sensor_devices = local
             return
 
         status = await self._make_encrypted_request(
@@ -609,7 +618,11 @@ class IT600Gateway:
             except Exception:
                 _LOGGER.exception("Failed to poll sensor %s", unique_id)
 
-        self._sensor_devices = local
+        reported = set(local)
+        self._sensor_devices.update(local)
+        for k in list(self._sensor_devices):
+            if k not in reported:
+                del self._sensor_devices[k]
 
     # ---- binary sensors ----
 
@@ -619,7 +632,6 @@ class IT600Gateway:
         local: dict[str, BinarySensorDevice] = {}
 
         if not devices:
-            self._binary_sensor_devices = local
             return
 
         status = await self._make_encrypted_request(
@@ -725,7 +737,11 @@ class IT600Gateway:
                     "Failed to poll binary sensor %s", unique_id
                 )
 
-        self._binary_sensor_devices = local
+        reported = set(local)
+        self._binary_sensor_devices.update(local)
+        for k in list(self._binary_sensor_devices):
+            if k not in reported:
+                del self._binary_sensor_devices[k]
 
     # ---- climate ----
 
@@ -739,11 +755,6 @@ class IT600Gateway:
         hvac_action_local: dict[str, SensorDevice] = {}
 
         if not devices:
-            self._climate_devices = local
-            self._battery_sensor_devices = battery_local
-            self._humidity_sensor_devices = humidity_local
-            self._error_binary_sensor_devices = error_local
-            self._hvac_action_sensor_devices = hvac_action_local
             return
 
         status = await self._make_encrypted_request(
@@ -1103,11 +1114,33 @@ class IT600Gateway:
             except Exception:
                 _LOGGER.exception("Failed to poll climate %s", unique_id)
 
-        self._climate_devices = local
-        self._battery_sensor_devices = battery_local
-        self._humidity_sensor_devices = humidity_local
-        self._error_binary_sensor_devices = error_local
-        self._hvac_action_sensor_devices = hvac_action_local
+        # Merge new data and prune devices no longer reported.
+        reported = set(local)
+        self._climate_devices.update(local)
+        for k in list(self._climate_devices):
+            if k not in reported:
+                del self._climate_devices[k]
+
+        self._battery_sensor_devices.update(battery_local)
+        for k in list(self._battery_sensor_devices):
+            if k.removesuffix("_battery") not in reported:
+                del self._battery_sensor_devices[k]
+
+        self._humidity_sensor_devices.update(humidity_local)
+        for k in list(self._humidity_sensor_devices):
+            if k.removesuffix("_humidity") not in reported:
+                del self._humidity_sensor_devices[k]
+
+        self._error_binary_sensor_devices.update(error_local)
+        for k in list(self._error_binary_sensor_devices):
+            parent = k.removesuffix("_problem").removesuffix("_battery_error")
+            if parent not in reported:
+                del self._error_binary_sensor_devices[k]
+
+        self._hvac_action_sensor_devices.update(hvac_action_local)
+        for k in list(self._hvac_action_sensor_devices):
+            if k.removesuffix("_hvac_action") not in reported:
+                del self._hvac_action_sensor_devices[k]
 
     # ------------------------------------------------------------------
     #  Callbacks
