@@ -94,10 +94,31 @@ async def async_setup_gateway_entry(
         return False
 
     # ── Shared coordinator ──────────────────────────────────────────
+    # Tolerate up to MAX_POLL_FAILURES consecutive poll failures before
+    # marking entities unavailable.  This prevents brief gateway hiccups
+    # (common when the thermostat is changing state) from flipping every
+    # entity to "unavailable" for a single 30-second cycle.
+    MAX_POLL_FAILURES = 10
+    consecutive_failures = 0
+
     async def _async_update_data() -> bool:
-        async with asyncio.timeout(30):
-            await gateway.poll_status()
-        return True
+        nonlocal consecutive_failures
+        try:
+            async with asyncio.timeout(30):
+                await gateway.poll_status()
+            consecutive_failures = 0
+            return True
+        except Exception:
+            consecutive_failures += 1
+            _LOGGER.debug(
+                "Poll failed (%d/%d before unavailable)",
+                consecutive_failures,
+                MAX_POLL_FAILURES,
+            )
+            if consecutive_failures >= MAX_POLL_FAILURES:
+                raise
+            # Swallow the error — keep last known good state.
+            return True
 
     coordinator = DataUpdateCoordinator(
         hass,
