@@ -61,7 +61,7 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> SalusOptionsFlowHandler:
         """Return the options flow handler."""
-        return SalusOptionsFlowHandler(config_entry)
+        return SalusOptionsFlowHandler()
 
     async def async_step_user(
         self, user_input: dict[str, str] | None = None
