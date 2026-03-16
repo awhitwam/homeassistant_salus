@@ -68,7 +68,15 @@ class SalusSensor(SalusEntity, SensorEntity):
             return SensorDeviceClass.POWER
         if dc == "energy":
             return SensorDeviceClass.ENERGY
+        if dc == "enum":
+            return SensorDeviceClass.ENUM
         return dc
+
+    @property
+    def state_class(self) -> SensorStateClass | None:
+        if self._device.device_class == "enum":
+            return None
+        return SensorStateClass.MEASUREMENT
 
     @property
     def entity_category(self) -> EntityCategory | None:
@@ -78,11 +86,17 @@ class SalusSensor(SalusEntity, SensorEntity):
         return None
 
     @property
+    def options(self) -> list[str] | None:
+        if self._device.device_class == "enum":
+            return ["off", "heating", "cooling", "idle"]
+        return None
+
+    @property
     def native_unit_of_measurement(self) -> str | None:
         return self._device.unit_of_measurement
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self):
         return self._device.state
 
     @property

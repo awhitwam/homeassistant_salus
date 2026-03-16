@@ -110,6 +110,7 @@ class IT600Gateway:
         self._battery_sensor_devices: dict[str, SensorDevice] = {}
         self._humidity_sensor_devices: dict[str, SensorDevice] = {}
         self._energy_sensor_devices: dict[str, SensorDevice] = {}
+        self._hvac_action_sensor_devices: dict[str, SensorDevice] = {}
         self._sensor_update_callbacks: list[Callable[..., Awaitable[None]]] = []
 
         self._error_binary_sensor_devices: dict[str, BinarySensorDevice] = {}
@@ -735,12 +736,14 @@ class IT600Gateway:
         battery_local: dict[str, SensorDevice] = {}
         humidity_local: dict[str, SensorDevice] = {}
         error_local: dict[str, BinarySensorDevice] = {}
+        hvac_action_local: dict[str, SensorDevice] = {}
 
         if not devices:
             self._climate_devices = local
             self._battery_sensor_devices = battery_local
             self._humidity_sensor_devices = humidity_local
             self._error_binary_sensor_devices = error_local
+            self._hvac_action_sensor_devices = hvac_action_local
             return
 
         status = await self._make_encrypted_request(
@@ -981,6 +984,24 @@ class IT600Gateway:
 
                 local[device.unique_id] = device
 
+                # Expose hvac_action as a standalone sensor so that
+                # heating/idle/cooling transitions appear in HA history.
+                action_uid = f"{unique_id}_hvac_action"
+                hvac_action_local[action_uid] = SensorDevice(
+                    available=device.available,
+                    name=f"{device.name} Running state",
+                    unique_id=action_uid,
+                    state=device.hvac_action,
+                    unit_of_measurement=None,
+                    device_class="enum",
+                    data=ds["data"],
+                    manufacturer=device.manufacturer,
+                    model=device.model,
+                    sw_version=device.sw_version,
+                    parent_unique_id=unique_id,
+                    entity_category=None,
+                )
+
                 # Extract battery level from Status_d character 99 (0-5).
                 # Only models in BATTERY_OEM_MODELS (SQ610RF etc.) are
                 # battery-powered and report meaningful values.
@@ -1086,6 +1107,7 @@ class IT600Gateway:
         self._battery_sensor_devices = battery_local
         self._humidity_sensor_devices = humidity_local
         self._error_binary_sensor_devices = error_local
+        self._hvac_action_sensor_devices = hvac_action_local
 
     # ------------------------------------------------------------------
     #  Callbacks
@@ -1176,13 +1198,15 @@ class IT600Gateway:
             **self._battery_sensor_devices,
             **self._humidity_sensor_devices,
             **self._energy_sensor_devices,
+            **self._hvac_action_sensor_devices,
         }
 
     def get_sensor_device(self, device_id: str) -> SensorDevice | None:
         return (self._sensor_devices.get(device_id)
                 or self._battery_sensor_devices.get(device_id)
                 or self._humidity_sensor_devices.get(device_id)
-                or self._energy_sensor_devices.get(device_id))
+                or self._energy_sensor_devices.get(device_id)
+                or self._hvac_action_sensor_devices.get(device_id))
 
     # ------------------------------------------------------------------
     #  Commands — covers
