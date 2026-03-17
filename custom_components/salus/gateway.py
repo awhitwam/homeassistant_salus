@@ -1481,7 +1481,6 @@ class IT600Gateway:
         """Round to nearest 0.5 (e.g. 1.01→1.0, 1.4→1.5, 1.8→2.0)."""
         return round(number * 2) / 2
 
-    @staticmethod
     def _resolve_available(self, unique_id: str, online_status: int) -> bool:
         """Return True unless the device has been offline for N consecutive polls."""
         if online_status == 1:
