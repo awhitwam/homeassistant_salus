@@ -115,6 +115,12 @@ class IT600Gateway:
 
         self._error_binary_sensor_devices: dict[str, BinarySensorDevice] = {}
 
+        # Per-device consecutive offline counter.  A device is only marked
+        # unavailable after it has reported OnlineStatus_i == 0 for
+        # _DEVICE_OFFLINE_THRESHOLD consecutive polls (~5 minutes at 30 s).
+        self._device_offline_counts: dict[str, int] = {}
+        self._DEVICE_OFFLINE_THRESHOLD = 10
+
     # ------------------------------------------------------------------
     #  Connection
     # ------------------------------------------------------------------
@@ -357,8 +363,10 @@ class IT600Gateway:
                     set_position = int(move_raw[:2], 16)
 
                 device = CoverDevice(
-                    available=ds.get("sZDOInfo", {}).get("OnlineStatus_i", 1)
-                    == 1,
+                    available=self._resolve_available(
+                        unique_id,
+                        ds.get("sZDOInfo", {}).get("OnlineStatus_i", 1),
+                    ),
                     name=self._device_name(ds, "Unknown"),
                     unique_id=unique_id,
                     current_cover_position=current_position,
@@ -436,8 +444,10 @@ class IT600Gateway:
                 model = ds.get("DeviceL", {}).get("ModelIdentifier_i")
 
                 device = SwitchDevice(
-                    available=ds.get("sZDOInfo", {}).get("OnlineStatus_i", 1)
-                    == 1,
+                    available=self._resolve_available(
+                        unique_id,
+                        ds.get("sZDOInfo", {}).get("OnlineStatus_i", 1),
+                    ),
                     name=self._device_name(ds, unique_id),
                     unique_id=unique_id,
                     is_on=is_on == 1,
@@ -541,8 +551,10 @@ class IT600Gateway:
                 model = ds.get("DeviceL", {}).get("ModelIdentifier_i")
 
                 device = SensorDevice(
-                    available=ds.get("sZDOInfo", {}).get("OnlineStatus_i", 1)
-                    == 1,
+                    available=self._resolve_available(
+                        unique_id,
+                        ds.get("sZDOInfo", {}).get("OnlineStatus_i", 1),
+                    ),
                     name=self._device_name(ds, "Unknown"),
                     unique_id=sensor_uid,
                     state=temperature / 100,
@@ -674,8 +686,10 @@ class IT600Gateway:
                     device_class = None
 
                 device = BinarySensorDevice(
-                    available=ds.get("sZDOInfo", {}).get("OnlineStatus_i", 1)
-                    == 1,
+                    available=self._resolve_available(
+                        unique_id,
+                        ds.get("sZDOInfo", {}).get("OnlineStatus_i", 1),
+                    ),
                     name=self._device_name(ds, "Unknown"),
                     unique_id=unique_id,
                     is_on=is_on == 1,
@@ -777,11 +791,13 @@ class IT600Gateway:
                 scomm = ds.get("sComm")
                 sfans = ds.get("sFanS")
 
+                online_raw = ds.get("sZDOInfo", {}).get(
+                    "OnlineStatus_i", 1
+                )
                 common = {
-                    "available": ds.get("sZDOInfo", {}).get(
-                        "OnlineStatus_i", 1
-                    )
-                    == 1,
+                    "available": self._resolve_available(
+                        unique_id, online_raw
+                    ),
                     "name": self._device_name(ds, "Unknown"),
                     "unique_id": unique_id,
                     "temperature_unit": TEMP_CELSIUS,
@@ -824,9 +840,7 @@ class IT600Gateway:
                             humidity = float(sunny)
                             hum_uid = f"{unique_id}_humidity"
                             humidity_local[hum_uid] = SensorDevice(
-                                available=ds.get("sZDOInfo", {}).get(
-                                    "OnlineStatus_i", 1
-                                ) == 1,
+                                available=common["available"],
                                 name=f"{self._device_name(ds, 'Unknown')} Humidity",
                                 unique_id=hum_uid,
                                 state=humidity,
@@ -1466,6 +1480,18 @@ class IT600Gateway:
     def round_to_half(number: float) -> float:
         """Round to nearest 0.5 (e.g. 1.01→1.0, 1.4→1.5, 1.8→2.0)."""
         return round(number * 2) / 2
+
+    @staticmethod
+    def _resolve_available(self, unique_id: str, online_status: int) -> bool:
+        """Return True unless the device has been offline for N consecutive polls."""
+        if online_status == 1:
+            self._device_offline_counts.pop(unique_id, None)
+            return True
+        count = self._device_offline_counts.get(unique_id, 0) + 1
+        self._device_offline_counts[unique_id] = count
+        if count >= self._DEVICE_OFFLINE_THRESHOLD:
+            return False
+        return True
 
     @staticmethod
     def _device_name(device_status: dict, fallback: str) -> str:
